@@ -125,9 +125,9 @@
       "targets": [
         {
           "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
           "editorMode": "code",
           "expr": "evasao_data_drift_share",
           "legendFormat": "__auto",

@@ -1,117 +1,71 @@
 # 🏫 Motor de Risco de Evasão Escolar (PE) - Arquitetura MLOps
 
-Este repositório contém o projeto final da 2VA da disciplina de Aprendizado de Máquina. O objetivo deste sistema é operacionalizar um modelo preditivo capaz de identificar precocemente o risco de evasão escolar em municípios, utilizando dados do Censo Escolar da Educação Básica de 2024.
-
-Além da modelagem, o foco central deste projeto é a aplicação rigorosa das práticas de **Machine Learning Operations (MLOps)**, garantindo que o modelo seja rastreável, reproduzível, servido de forma escalável e monitorado em tempo real contra degradação de dados (*Data Drift*).
+Este repositório contém o projeto final da 2VA da disciplina de Aprendizado de Máquina. O objetivo deste sistema é operacionalizar um modelo preditivo capaz de identificar precocemente o risco de evasão escolar em municípios (utilizando dados do Censo Escolar da Educação Básica), com aplicação rigorosa das práticas de **Machine Learning Operations (MLOps)**.
 
 ---
 
-## 🏗️ Decisões Arquiteturais e Tecnológicas
+## 🏗️ A Arquitetura (Separation of Concerns)
 
-Para garantir a robustez do sistema e a conformidade com as melhores práticas de engenharia de software, a arquitetura foi desenhada com base no princípio de **Separação de Responsabilidades (Separation of Concerns)**. O ecossistema é 100% open-source e orquestrado via Docker.
-
-### 1. Rastreamento e Registro (MLflow + Postgres + MinIO)
-O modelo não é um artefato estático no código. O pipeline de treinamento (`train.py`) está integrado ao **MLflow**.
-* **PostgreSQL:** Atua como *Backend Store*, guardando os parâmetros, métricas (AUC, Recall, F1) e metadados das execuções.
-* **MinIO:** Atua como *Artifact Store* (compatível com S3), armazenando os binários serializados (`cloudpickle`) do modelo Scikit-Learn e do pré-processador (`scaler.joblib`).
-* **Decisão:** Isso garante a governança completa do ciclo de vida do modelo. A API de produção consome dinamicamente o modelo que possui a tag/alias `production` diretamente do MLflow Registry.
-
-### 2. Inferência de Baixa Latência (FastAPI)
-O modelo é exposto através de uma API REST construída com **FastAPI** e **Uvicorn** (`model-api`).
-* **Decisão de Negócio (Ajuste de Limiar):** Para o contexto de evasão escolar, o custo de um Falso Negativo (não identificar um município em crise) é inaceitável. Por isso, a API não utiliza o `.predict()` padrão. Ela extrai as probabilidades via `.predict_proba()` e aplica um limiar de decisão customizado (`0.35`) via software, maximizando o *Recall* sem a necessidade de retreinar o modelo com limiares fixos.
-* A API foi projetada para ser enxuta: ela recebe a requisição, aplica o *One-Hot Encoding*, normaliza, classifica, salva a requisição num arquivo de log de produção e responde ao usuário. 
-
-### 3. Monitoramento Desacoplado (Evidently + Prometheus + Grafana)
-A monitoria de *Data Drift* envolve cálculos estatísticos pesados que poderiam estrangular o servidor web.
-* **Decisão Arquitetural:** O serviço de monitoria (`monitoring`) foi **desacoplado** da API. Ele roda em um contêiner isolado, consumindo assincronamente os logs CSV gerados pela API.
-* Ele utiliza a biblioteca **Evidently** para comparar as predições em produção com uma base de referência (Baseline). Se a distribuição das features mudar drasticamente, ele atualiza uma métrica exposta ao **Prometheus**, que por sua vez alimenta os alertas visuais em tempo real no **Grafana**.
-
-### 4. Cliente e Interface de Usuário (Streamlit)
-Atendendo ao requisito de usabilidade por não-cientistas de dados (gestores educacionais), foi desenvolvida uma interface interativa com **Streamlit**.
-* O Streamlit não carrega o modelo em memória; ele atua puramente como um cliente HTTP consumindo o FastAPI.
-* **Modos de Operação:** Permite a análise individual de um contexto escolar específico ou o processamento em Lote (Batch Inference) através do upload de planilhas, gerando um ranking de prioridade de intervenção.
+Para refletir um ambiente de produção real, o sistema foi estruturado separando o pipeline de treinamento do serviço de inferência e do monitoramento assíncrono:
+1. **Tracking & Registry:** MLflow + PostgreSQL + MinIO (S3).
+2. **Serving:** FastAPI + Uvicorn (O modelo não é embutido no código; ele é baixado dinamicamente do Registry).
+3. **Monitoring:** Evidently + Prometheus + Grafana (Microsserviço totalmente desacoplado da API, lendo logs de forma assíncrona na porta `8002` para não onerar a inferência).
+4. **Client/Frontend:** Streamlit (Atua puramente como cliente, consumindo a API via REST).
 
 ---
 
-## 📂 Estrutura do Repositório
+## 🚀 Guia de Execução do Zero (Cold Start)
 
-```text
-evasao-mlops/
-├── data/
-│   ├── dataset_integrado.csv    # Dataset processado para treinamento
-│   └── reference.csv            # Amostra de baseline para o Evidently
-├── config/
-│   ├── Dockerfile.mlflow        # Receita do servidor de rastreamento
-│   └── prometheus.yml           # Configuração de extração de métricas
-├── src/
-│   ├── train.py                 # Pipeline de treinamento e MLflow log
-│   ├── app.py                   # Motor de Inferência FastAPI
-│   ├── monitor.py               # Microsserviço assíncrono de observabilidade
-│   ├── dashboard.py             # Cliente UI em Streamlit
-│   ├── Dockerfile.api           # Imagem enxuta de inferência
-│   ├── Dockerfile.monitoring    # Imagem com compiladores estatísticos
-│   └── Dockerfile.frontend      # Imagem do cliente
-├── docker-compose.yml           # Orquestrador unificado da infraestrutura
-└── pyproject.toml               # Gerenciador de dependências reprodutíveis
+Como a infraestrutura é criada do zero (bancos de dados e storages vazios), o fluxo de inicialização segue a ordem cronológica de MLOps: **Subir a Infraestrutura Base -> Executar o Pipeline de Treinamento -> Ativar o Motor de Inferência**.
 
-```
-
----
-
-## 🚀 Guia de Execução e Reprodução
-
-**Pré-requisitos:** Docker e Docker Compose instalados no sistema.
-
-### Passo 1: Subir a Infraestrutura Base
-
-Na raiz do repositório, inicie todos os contêineres em segundo plano:
-
+### Passo 1: Iniciar os Contêineres da Stack
+Na raiz do repositório, levante toda a infraestrutura orquestrada:
 ```bash
 docker compose up -d
 
 ```
 
-*Nota: Aguarde aproximadamente 30 segundos para que os bancos de dados (PostgreSQL e MinIO) fiquem plenamente operacionais antes de prosseguir.*
+*Observação de Engenharia: Neste momento, o contêiner da API (`model-api`) subirá, mas identificará no log que o banco de dados do MLflow está virgem e o alias de produção não existe. Ela apresentará um aviso no log, mas permanecerá rodando (resiliência ativa), aguardando o primeiro registro.*
 
-### Passo 2: Treinar e Registrar o Modelo
+### Passo 2: Executar o Pipeline de Treinamento
 
-Com o ambiente Python virtual ativado e as dependências instaladas (`pip install .`), execute o pipeline de treinamento. O script conectará automaticamente ao MinIO (criando o bucket se necessário) e ao MLflow:
+Com os contêineres rodando de fundo, execute o pipeline de treinamento na sua máquina (certifique-se de ter ativado seu ambiente virtual e instalado as dependências fixadas do projeto):
 
 ```bash
 python src/train.py
 
 ```
 
-1. Acesse o MLflow em `http://localhost:5050`.
-2. Navegue até **Models** > **RiscoEvasaoModel**.
-3. Selecione a versão recém-criada e adicione o *Alias* `production` para sinalizar ao FastAPI que este é o modelo a ser servido.
+*Nota de Automação: O script irá carregar o dataset integrado, normalizar os dados, treinar o Random Forest ajustado, salvá-lo no MinIO S3 e, através do MLflowClient, irá promover essa versão de forma 100% automatizada para o alias `production` no Model Registry.*
 
-### Passo 3: Reiniciar a API para Carregamento (Cold Start)
+### Passo 3: Reiniciar a API para Carregamento (Warm Up)
 
-Como o modelo agora possui a tag de produção, reinicie a API para que ela faça o download dos artefatos:
+Agora que o modelo campeão está registrado com a tag oficial de produção, reinicie o contêiner da API para forçar o gatilho de *startup* que baixa os artefatos para a memória:
 
 ```bash
 docker compose restart model-api
 
 ```
 
-### Passo 4: Acessar as Interfaces
+---
 
-A sua suíte MLOps agora está no ar e pronta para uso:
+## 🖥️ Portas de Acesso às Interfaces
 
-* 🖥️ **Painel do Gestor (Frontend):** [http://localhost:8501](https://www.google.com/search?q=http://localhost:8501)
-* ⚙️ **Documentação OpenAPI (Swagger):** [http://localhost:8001/docs](https://www.google.com/search?q=http://localhost:8001/docs)
-* 📈 **Monitoramento (Grafana):** [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) *(Credenciais: admin/admin)*
-* 🧠 **Rastreamento de Experimentos:** [http://localhost:5050](https://www.google.com/search?q=http://localhost:5050)
+Com a stack completamente aquecida, você pode acessar os serviços nas seguintes URLs locais:
+
+* 👨‍🏫 **Painel do Gestor (Streamlit UI):** [http://localhost:8501](https://www.google.com/search?q=http://localhost:8501)
+* ⚙️ **Documentação OpenAPI (Swagger API):** [http://localhost:8001/docs](https://www.google.com/search?q=http://localhost:8001/docs)
+* 📈 **Observabilidade de Produção (Grafana):** [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) *(Credenciais: admin / admin)*
+* 🧠 **Rastreamento de Modelos (MLflow):** [http://localhost:5050](https://www.google.com/search?q=http://localhost:5050)
 
 ---
 
-## 🚨 Demonstração de Observabilidade (Data Drift)
+## 🚨 Validação do Monitoramento (Simulando Data Drift)
 
-Para validar o funcionamento do ciclo de feedback e monitoramento do sistema:
+O painel do Grafana já nasce pré-provisionado de forma automatizada via código, eliminando a necessidade de qualquer configuração manual em tela. Para validar o circuito de feedback:
 
-1. Acesse o **Grafana**, conecte o Data Source do Prometheus (`http://prometheus:9090`) e crie um painel observando a métrica `evasao_data_drift_share`.
-2. Acesse a interface do **Streamlit** na aba "Análise em Lote".
-3. Faça o upload de um arquivo CSV simulando uma catástrofe institucional (escolas com indicadores de reprovação altíssimos e infraestrutura crítica).
-4. Submeta o lote.
-5. Retorne ao Grafana. Dentro de até 10 segundos, o serviço de `monitoring` detectará a alteração severa na distribuição dos dados em relação ao `reference.csv` e o painel registrará um salto estatístico de *Data Drift*.
+1. Acesse o **Grafana** (`http://localhost:3000`) e abra o dashboard **"Motor de Risco MLOps"**.
+2. Acesse a interface do **Streamlit** e mude para a aba **"📁 Análise em Lote (Planilha)"**.
+3. Faça o upload de um arquivo CSV simulando uma degradação estatística severa (por exemplo, enviando municípios com taxas de reprovação elevadas e infraestrutura básica zerada).
+4. Clique em **"Processar Lote"**.
+5. Retorne imediatamente ao Grafana. Como o microsserviço `monitor.py` realiza o cálculo estatístico via **Evidently** de maneira assíncrona, aguarde a janela de varredura (até 10 segundos). O velocímetro de **Data Drift** registrará o desvio populacional e mudará visualmente para a zona de alerta.

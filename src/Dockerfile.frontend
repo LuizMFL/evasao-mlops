@@ -1,9 +1,9 @@
-# src/Dockerfile.frontend
 FROM python:3.9-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir streamlit==1.32.0 requests==2.31.0 pandas==2.1.0
+# A MÁGICA ESTÁ AQUI TAMBÉM: Blindando a interface do usuário
+RUN pip install --no-cache-dir "numpy<2.0.0" streamlit==1.32.0 requests==2.31.0 pandas==2.1.0
 
 COPY . /app/
 

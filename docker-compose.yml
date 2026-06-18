@@ -150,7 +150,7 @@ services:
     volumes:
       - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards/json_files
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - mlops_net
 

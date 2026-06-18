@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import pandas as pd
-import time
 
 # Configuração da página
 st.set_page_config(page_title="Prevenção de Evasão Escolar", page_icon="🏫", layout="wide")
@@ -15,44 +14,44 @@ st.markdown("Plataforma de Inteligência Artificial para identificação precoce
 tab1, tab2 = st.tabs(["🔍 Análise Individual", "📁 Análise em Lote (Planilha)"])
 
 # ---------------------------------------------------------
-# ABA 1: ANÁLISE INDIVIDUAL
+# ABA 1: ANÁLISE INDIVIDUAL (Sem st.form para evitar o bug do Streamlit)
 # ---------------------------------------------------------
 with tab1:
     st.markdown("Insira os indicadores de um município ou escola específica para avaliação instantânea.")
-    with st.form("form_municipio"):
-        st.subheader("📊 Indicadores Educacionais e de Infraestrutura")
 
-        col1, col2, col3 = st.columns(3)
+    st.subheader("📊 Indicadores Educacionais e de Infraestrutura")
 
-        with col1:
-            st.markdown("**Taxas de Reprovação (%)**")
-            reprov_fund_total = st.number_input("Ensino Fund. (Total)", min_value=0.0, max_value=100.0, value=5.0)
-            reprov_fund_anos_finais = st.number_input("Ensino Fund. (Anos Finais)", min_value=0.0, max_value=100.0,
-                                                      value=7.0)
-            reprov_med_total = st.number_input("Ensino Médio (Total)", min_value=0.0, max_value=100.0, value=10.0)
-            reprov_med_1serie = st.number_input("Ensino Médio (1ª Série)", min_value=0.0, max_value=100.0, value=12.0)
+    col1, col2, col3 = st.columns(3)
 
-            st.markdown("**Contexto**")
-            localizacao = st.selectbox("Localização", ["Rural", "Urbana", "Total"])
-            dependencia_adm = st.selectbox("Dependência Administrativa", ["Estadual", "Municipal", "Privada", "Total"])
+    with col1:
+        st.markdown("**Taxas de Reprovação (%)**")
+        reprov_fund_total = st.number_input("Ensino Fund. (Total)", min_value=0.0, max_value=100.0, value=5.0)
+        reprov_fund_anos_finais = st.number_input("Ensino Fund. (Anos Finais)", min_value=0.0, max_value=100.0,
+                                                  value=7.0)
+        reprov_med_total = st.number_input("Ensino Médio (Total)", min_value=0.0, max_value=100.0, value=10.0)
+        reprov_med_1serie = st.number_input("Ensino Médio (1ª Série)", min_value=0.0, max_value=100.0, value=12.0)
 
-        with col2:
-            st.markdown("**Infraestrutura Básica (%)**")
-            pct_internet = st.number_input("Acesso à Internet", min_value=0.0, max_value=100.0, value=80.0)
-            pct_biblioteca = st.number_input("Possui Biblioteca", min_value=0.0, max_value=100.0, value=60.0)
-            pct_lab_informatica = st.number_input("Laboratório de Informática", min_value=0.0, max_value=100.0,
-                                                  value=50.0)
-            pct_quadra = st.number_input("Quadra de Esportes", min_value=0.0, max_value=100.0, value=70.0)
-            qt_salas_media = st.number_input("Média de Salas de Aula", min_value=0.0, value=10.0)
+        st.markdown("**Contexto**")
+        localizacao = st.selectbox("Localização", ["Rural", "Urbana", "Total"])
+        dependencia_adm = st.selectbox("Dependência Administrativa", ["Estadual", "Municipal", "Privada", "Total"])
 
-        with col3:
-            st.markdown("**Saneamento e Acessibilidade (%)**")
-            pct_agua_potavel = st.number_input("Água Potável", min_value=0.0, max_value=100.0, value=95.0)
-            pct_sem_esgoto = st.number_input("Sem Rede de Esgoto", min_value=0.0, max_value=100.0, value=20.0)
-            pct_sem_acessibilidade = st.number_input("Sem Acessibilidade", min_value=0.0, max_value=100.0, value=30.0)
-            pct_alimentacao = st.number_input("Oferece Alimentação", min_value=0.0, max_value=100.0, value=100.0)
+    with col2:
+        st.markdown("**Infraestrutura Básica (%)**")
+        pct_internet = st.number_input("Acesso à Internet", min_value=0.0, max_value=100.0, value=80.0)
+        pct_biblioteca = st.number_input("Possui Biblioteca", min_value=0.0, max_value=100.0, value=60.0)
+        pct_lab_informatica = st.number_input("Laboratório de Informática", min_value=0.0, max_value=100.0, value=50.0)
+        pct_quadra = st.number_input("Quadra de Esportes", min_value=0.0, max_value=100.0, value=70.0)
+        qt_salas_media = st.number_input("Média de Salas de Aula", min_value=0.0, value=10.0)
 
-        submit_button = st.form_submit_button(label="🔍 Analisar Risco de Evasão", use_container_width=True)
+    with col3:
+        st.markdown("**Saneamento e Acessibilidade (%)**")
+        pct_agua_potavel = st.number_input("Água Potável", min_value=0.0, max_value=100.0, value=95.0)
+        pct_sem_esgoto = st.number_input("Sem Rede de Esgoto", min_value=0.0, max_value=100.0, value=20.0)
+        pct_sem_acessibilidade = st.number_input("Sem Acessibilidade", min_value=0.0, max_value=100.0, value=30.0)
+        pct_alimentacao = st.number_input("Oferece Alimentação", min_value=0.0, max_value=100.0, value=100.0)
+
+    # st.button comum substitui o st.form_submit_button
+    submit_button = st.button("🔍 Analisar Risco de Evasão", type="primary", use_container_width=True)
 
     if submit_button:
         dados_entrada = {
@@ -96,6 +95,9 @@ with tab1:
             except Exception:
                 st.error("❌ Não foi possível conectar ao Backend (FastAPI).")
 
+# ---------------------------------------------------------
+# ABA 2: ANÁLISE EM LOTE (BATCH)
+# ---------------------------------------------------------
 with tab2:
     st.markdown(
         "Faça o upload de uma planilha contendo os dados de várias escolas/municípios para gerar um ranking de prioridade.")
@@ -114,7 +116,6 @@ with tab2:
 
             for i, reg in enumerate(registros):
                 try:
-                    # Garantir que nulos se tornem 0
                     for k, v in reg.items():
                         if pd.isna(v): reg[k] = 0.0
 
@@ -162,8 +163,9 @@ with tab2:
             df_resultados = df_resultados.sort_values(by="Probabilidade (%)", ascending=False)
 
             st.subheader("🏆 Ranking de Prioridade de Intervenção")
+
             st.dataframe(
-                df_resultados.style.applymap(
+                df_resultados.style.map(
                     lambda val: 'background-color: #ffcccc' if val == 'ALTO RISCO' else (
                         'background-color: #ccffcc' if val == 'BAIXO RISCO' else ''),
                     subset=['Risco (IA)']
@@ -176,5 +178,5 @@ with tab2:
                 label="📥 Baixar Relatório Analítico",
                 data=csv,
                 file_name='ranking_evasao_mlops.csv',
-                mime='text/csv',
+                mime='text/csv'
             )

@@ -115,3 +115,12 @@ with mlflow.start_run(run_name="RandomForest_Tuned_Producao") as run:
 
     print(f"✅ Sucesso! Run ID: {run.info.run_id}")
     print(f"📊 AUC: {auc:.3f} | Recall Base: {recall:.3f}")
+
+    print("⚙️ Automatizando a tag de Produção no Model Registry...")
+    client = mlflow.MlflowClient()
+
+    versoes = client.search_model_versions("name='RiscoEvasaoModel'")
+    ultima_versao = max([int(v.version) for v in versoes])
+
+    client.set_registered_model_alias("RiscoEvasaoModel", "production", str(ultima_versao))
+    print(f"🚀 Versão {ultima_versao} promovida para 'production' com sucesso!")
